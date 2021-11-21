@@ -24,6 +24,7 @@ import (
 
 type APIClient interface {
 	Get(url string) (*http.Response, error)
+	GetWithParams(url string, params map[string]string) (*http.Response, error)
 	Post(url, body string) (*http.Response, error)
 }
 
@@ -123,6 +124,19 @@ func (c *apiClient) Get(url string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	return c.Do(request)
+}
+
+func (c *apiClient) GetWithParams(url string, params map[string]string) (*http.Response, error) {
+	request, err := http.NewRequest("GET", c.Endpoint()+"rest/"+url, nil)
+	if err != nil {
+		return nil, err
+	}
+    q := request.URL.Query()
+    for key, value := range params{
+        q.Add(key, value)
+    }
+    request.URL.RawQuery = q.Encode()
 	return c.Do(request)
 }
 
