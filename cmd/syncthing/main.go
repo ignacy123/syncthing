@@ -148,6 +148,7 @@ type serveOptions struct {
 	BrowserOnly      bool   `help:"Open GUI in browser"`
 	DataDir          string `name:"data" placeholder:"PATH" help:"Set data directory (database and logs)"`
 	DeviceID         bool   `help:"Show the device ID"`
+	ForceOverride    bool   `help:"Instead of swapping the data and config folders override them in the default locations"`
 	GenerateDir      string `name:"generate" placeholder:"PATH" help:"Generate key and config in specified dir, then exit"` //DEPRECATED: replaced by subcommand!
 	GUIAddress       string `name:"gui-address" placeholder:"URL" help:"Override GUI address (e.g. \"http://192.0.2.42:8443\")"`
 	GUIAPIKey        string `name:"gui-apikey" placeholder:"API-KEY" help:"Override GUI API key"`
@@ -286,12 +287,83 @@ func (options serveOptions) Run() error {
 		osutil.HideConsole()
 	}
 
-	// Not set as default above because the strings can be really long.
-	err := cmdutil.SetConfigDataLocationsFromFlags(options.HomeDir, options.ConfDir, options.DataDir)
-	if err != nil {
-		l.Warnln("Command line options:", err)
-		os.Exit(svcutil.ExitError.AsInt())
-	}
+	if !options.ForceOverride {
+        // Not set as default above because the strings can be really long.
+        err := cmdutil.SetConfigDataLocationsFromFlags(options.HomeDir, options.ConfDir, options.DataDir)
+        if err != nil {
+            l.Warnln("Command line options:", err)
+            os.Exit(svcutil.ExitError.AsInt())
+        }
+    }else{
+        //shares most of the code with SetConfigDataLocationsFromFlags, TODO refactor
+        homeDir := options.HomeDir
+        confDir := options.ConfDir
+        dataDir := options.DataDir
+        homeSet := homeDir != ""
+        confSet := confDir != ""
+        dataSet := dataDir != ""
+        defaultConfigFile := locations.Get(locations.ConfigFile)
+        defaultCertFile := locations.Get(locations.CertFile)
+        defaultKeyFile := locations.Get(locations.KeyFile)
+        switch {
+        case dataSet != confSet:
+            return errors.New("either both or none of --config and --data must be given, use --home to set both at once")
+        case homeSet && dataSet:
+            return errors.New("--home must not be used together with --config and --data")
+        case homeSet:
+            confDir = homeDir
+            dataDir = homeDir
+        }
+        newConfigFile := confDir + "/config.xml"
+        newCertFile := dataDir + "/cert.pem"
+        newKeyFile := dataDir + "/key.pem"
+        
+        //TODO definitely needs refactoring
+        
+        source, err := os.Open(newConfigFile)
+        if err != nil {
+            return err
+        }
+        defer source.Close()
+        destination, err := os.OpenFile(defaultConfigFile, os.O_WRONLY, os.ModePerm)
+        if err != nil {
+            return err
+        }
+        defer destination.Close()
+        _, err = io.Copy(destination, source)
+        if err != nil {
+            return err
+        }
+        source, err = os.Open(newCertFile)
+        if err != nil {
+            return err
+        }
+        defer source.Close()
+        destination, err = os.OpenFile(defaultCertFile, os.O_WRONLY, os.ModePerm)
+        if err != nil {
+            return err
+        }
+        defer destination.Close()
+        _, err = io.Copy(destination, source)
+        if err != nil {
+            return err
+        }
+        source, err = os.Open(newKeyFile)
+        if err != nil {
+            return err
+        }
+        defer source.Close()
+        destination, err = os.OpenFile(defaultKeyFile, os.O_WRONLY, os.ModePerm)
+        if err != nil {
+            return err
+        }
+        defer destination.Close()
+        _, err = io.Copy(destination, source)
+        if err != nil {
+            return err
+        }
+    }
+        
 
 	if options.LogFile == "default" || options.LogFile == "" {
 		// We must set this *after* expandLocations above.
