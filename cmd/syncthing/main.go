@@ -148,6 +148,7 @@ type serveOptions struct {
 	BrowserOnly      bool   `help:"Open GUI in browser"`
 	DataDir          string `name:"data" placeholder:"PATH" help:"Set data directory (database and logs)"`
 	DeviceID         bool   `help:"Show the device ID"`
+	ForceOverride    bool   `help:"Replace config, key and cert files by files from provided home or config & data directories, then exit"`
 	GenerateDir      string `name:"generate" placeholder:"PATH" help:"Generate key and config in specified dir, then exit"` //DEPRECATED: replaced by subcommand!
 	GUIAddress       string `name:"gui-address" placeholder:"URL" help:"Override GUI address (e.g. \"http://192.0.2.42:8443\")"`
 	GUIAPIKey        string `name:"gui-apikey" placeholder:"API-KEY" help:"Override GUI API key"`
@@ -284,6 +285,14 @@ func (options serveOptions) Run() error {
 
 	if options.HideConsole {
 		osutil.HideConsole()
+	}
+
+	if options.ForceOverride {
+		if err := cmdutil.OverrideCredentials(options.HomeDir, options.ConfDir, options.DataDir); err != nil {
+			l.Warnln("Failed to override credentials:", err)
+			os.Exit(svcutil.ExitError.AsInt())
+		}
+		return nil
 	}
 
 	// Not set as default above because the strings can be really long.
